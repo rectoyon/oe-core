@@ -10,10 +10,10 @@ HOMEPAGE = "http://mesa3d.org"
 BUGTRACKER = "https://bugs.freedesktop.org"
 SECTION = "x11"
 LICENSE = "MIT"
-LIC_FILES_CHKSUM = "file://docs/license.html;md5=f69a4626e9efc40fa0d3cc3b02c9eacf"
 
-INC_PR = "r9"
 PE = "2"
+
+LIC_FILES_CHKSUM = "file://docs/license.html;md5=6a23445982a7a972ac198e93cc1cb3de"
 
 DEPENDS = "expat makedepend-native flex-native bison-native udev"
 
@@ -39,6 +39,7 @@ DRIDRIVERS = "swrast"
 DRIDRIVERS_append_x86 = ",radeon,r200,nouveau,i965,i915"
 DRIDRIVERS_append_x86-64 = ",radeon,r200,nouveau,i965,i915"
 PACKAGECONFIG[dri] = "--enable-dri --with-dri-drivers=${DRIDRIVERS}, --disable-dri, dri2proto libdrm"
+PACKAGECONFIG[dri3] = "--enable-dri3, --disable-dri3, dri3proto presentproto libxshmfence"
 
 EXTRA_OECONF += "--enable-gbm"
 
@@ -78,7 +79,7 @@ RDEPENDS_${PN}-dev = ""
 PACKAGES =+ "libegl-mesa libegl-mesa-dev \
              libosmesa libosmesa-dev \
              libgl-mesa libgl-mesa-dev \
-             libdricore libdricore-dev \
+             mesa-megadriver \
              libglapi libglapi-dev \
              libgbm libgbm-dev \
              libgles1-mesa libgles1-mesa-dev \
@@ -96,7 +97,7 @@ do_install_append () {
     rm -f ${D}${libdir}/egl/*.la
     rm -f ${D}${libdir}/gallium-pipe/*.la
     rm -f ${D}${libdir}/gbm/*.la
-    
+
     # it was packaged in libdricore9.1.3-1 and preventing upgrades when debian.bbclass was used 
     rm -f ${D}${sysconfdir}/drirc
 }
@@ -119,7 +120,7 @@ python __anonymous() {
         d.appendVar("RREPLACES_" + fullp, pkgs)
         d.appendVar("RPROVIDES_" + fullp, pkgs)
         d.appendVar("RCONFLICTS_" + fullp, pkgs)
-        
+
         # For -dev, the first element is both the Debian and original name
         fullp += "-dev"
         pkgs = p[1] + "-dev"
@@ -130,15 +131,27 @@ python __anonymous() {
 }
 
 python mesa_populate_packages() {
-    dri_drivers_root = os.path.join(d.getVar('libdir', True), "dri")
-
     pkgs = ['mesa', 'mesa-dev', 'mesa-dbg']
-    pkgs += do_split_packages(d, dri_drivers_root, '^(.*)_dri\.so$', 'mesa-driver-%s', 'Mesa %s DRI driver', extra_depends='')
     for pkg in pkgs:
         d.setVar("RPROVIDES_%s" % pkg, pkg.replace("mesa-", "mesa-dri-"))
         d.setVar("RCONFLICTS_%s" % pkg, pkg.replace("mesa-", "mesa-dri-"))
         d.setVar("RREPLACES_%s" % pkg, pkg.replace("mesa-", "mesa-dri-"))
-    
+
+    import re
+    dri_drivers_root = os.path.join(d.getVar('libdir', True), "dri")
+    dri_pkgs = os.listdir(d.getVar('PKGD', True) + dri_drivers_root)
+    lib_name = "mesa-megadriver"
+    mlprefix = d.getVar('MLPREFIX', True)
+    if mlprefix:
+       lib_name = "%s%s" % (mlprefix, lib_name)
+    for p in sorted(dri_pkgs):
+        m = re.match('^(.*)_dri\.so$', p)
+        if m:
+            pkg_name = " mesa-driver-%s" % legitimize_package_name(m.group(1))
+            d.appendVar("RPROVIDES_%s" % lib_name, pkg_name)
+            d.appendVar("RCONFLICTS_%s" % lib_name, pkg_name)
+            d.appendVar("RREPLACES_%s" % lib_name, pkg_name)
+
     pipe_drivers_root = os.path.join(d.getVar('libdir', True), "gallium-pipe")
     do_split_packages(d, pipe_drivers_root, '^pipe_(.*)\.so$', 'mesa-driver-pipe-%s', 'Mesa %s pipe driver', extra_depends='')
 }
@@ -148,8 +161,8 @@ PACKAGESPLITFUNCS_prepend = "mesa_populate_packages "
 PACKAGES_DYNAMIC += "^mesa-driver-.*"
 
 FILES_${PN}-dbg += "${libdir}/dri/.debug/*"
-
-FILES_libdricore = "${sysconfdir}/drirc ${libdir}/libdricore*.so.*"
+FILES_${PN} += "${sysconfdir}/drirc"
+FILES_mesa-megadriver = "${libdir}/dri/*"
 FILES_libegl-mesa = "${libdir}/libEGL.so.*"
 FILES_libgbm = "${libdir}/libgbm.so.*"
 FILES_libgles1-mesa = "${libdir}/libGLESv1*.so.*"
@@ -164,7 +177,6 @@ FILES_libopenvg = "${libdir}/libOpenVG.so.*"
 FILES_libxvmcsoftpipe = "${libdir}/libXvMCsoftpipe.so.*"
 
 FILES_${PN}-dev = "${libdir}/pkgconfig/dri.pc"
-FILES_libdricore-dev = "${libdir}/libdricore*.*"
 FILES_libegl-mesa-dev = "${libdir}/libEGL.* ${includedir}/EGL ${includedir}/KHR ${libdir}/pkgconfig/egl.pc"
 FILES_libgbm-dev = "${libdir}/libgbm.* ${libdir}/pkgconfig/gbm.pc ${includedir}/gbm.h"
 FILES_libgl-mesa-dev = "${libdir}/libGL.* ${includedir}/GL ${libdir}/pkgconfig/gl.pc"
