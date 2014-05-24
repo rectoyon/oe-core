@@ -14,7 +14,7 @@ CPPFLAGS_append_libc-uclibc = " -DU_TIMEZONE=0"
 
 BINCONFIG = "${bindir}/icu-config"
 
-inherit autotools pkgconfig binconfig-disabled
+inherit autotools pkgconfig binconfig
 
 # ICU needs the native build directory as an argument to its --with-cross-build option when
 # cross-compiling. Taken the situation that different builds may share a common sstate-cache
